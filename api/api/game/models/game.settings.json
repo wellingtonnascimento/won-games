@@ -25,7 +25,7 @@
     "short_description": {
       "type": "text",
       "required": true,
-      "maxLength": 150
+      "maxLength": 160
     },
     "description": {
       "type": "richtext",
@@ -47,7 +47,8 @@
         "BR12",
         "BR14",
         "BR16",
-        "BR18"
+        "BR18",
+        "FREE"
       ]
     },
     "cover": {
