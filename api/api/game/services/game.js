@@ -1,9 +1,10 @@
 "use strict";
 
 /**
- * Read the documentation (https://strapi.io/documentation/developer-docs/latest/development/backend-customization.html#core-services)
+ * Read the documentation (https://strapi.io/documentation/v3.x/concepts/services.html#core-services)
  * to customize this service
  */
+
 const axios = require("axios");
 const slugify = require("slugify");
 const qs = require("querystring");
@@ -23,19 +24,10 @@ async function getGameInfo(slug) {
     const body = await axios.get(`https://www.gog.com/game/${slug}`);
     const dom = new JSDOM(body.data);
 
-    const ratingElement = dom.window.document.querySelector(
-      ".age-restrictions__icon use"
-    );
-
     const description = dom.window.document.querySelector(".description");
 
     return {
-      rating: ratingElement
-        ? ratingElement
-            .getAttribute("xlink:href")
-            .replace(/_/g, "")
-            .replace(/[^\w-]+/g, "")
-        : "FREE",
+      rating: "BR0",
       short_description: description.textContent.trim().slice(0, 160),
       description: description.innerHTML,
     };
@@ -46,7 +38,7 @@ async function getGameInfo(slug) {
 
 async function getByName(name, entityName) {
   const item = await strapi.services[entityName].find({ name });
-  return item.length > 0 ? item[0] : null;
+  return item.length ? item[0] : null;
 }
 
 async function create(name, entityName) {
@@ -55,45 +47,46 @@ async function create(name, entityName) {
   if (!item) {
     return await strapi.services[entityName].create({
       name,
-      slug: slugify(name, { lower: true }),
+      slug: slugify(name, { strict: true, lower: true }),
     });
   }
 }
 
 async function createManyToManyData(products) {
-  const developers = {};
-  const publishers = {};
-  const categories = {};
-  const platforms = {};
+  const developers = new Set();
+  const publishers = new Set();
+  const categories = new Set();
+  const platforms = new Set();
 
   products.forEach((product) => {
     const { developer, publisher, genres, supportedOperatingSystems } = product;
 
-    genres &&
-      genres.forEach((genre) => {
-        categories[genre] = true;
-      });
+    genres?.forEach((item) => {
+      categories.add(item);
+    });
 
-    supportedOperatingSystems &&
-      supportedOperatingSystems.forEach((os) => {
-        platforms[os] = true;
-      });
+    supportedOperatingSystems?.forEach((item) => {
+      platforms.add(item);
+    });
 
-    developers[developer] = true;
-    publishers[publisher] = true;
+    developers.add(developer);
+    publishers.add(publisher);
   });
 
+  const createCall = (set, entityName) =>
+    Array.from(set).map((name) => create(name, entityName));
+
   return Promise.all([
-    ...Object.keys(developers).map((name) => create(name, "developer")),
-    ...Object.keys(publishers).map((name) => create(name, "publisher")),
-    ...Object.keys(categories).map((name) => create(name, "category")),
-    ...Object.keys(platforms).map((name) => create(name, "platform")),
+    ...createCall(developers, "developer"),
+    ...createCall(publishers, "publisher"),
+    ...createCall(categories, "category"),
+    ...createCall(platforms, "platform"),
   ]);
 }
 
 async function setImage({ image, game, field = "cover" }) {
   try {
-    const url = `https:${image}_bg_crop_1680x655.jpg`;
+    const url = `https:${image}.jpg`;
     const { data } = await axios.get(url, { responseType: "arraybuffer" });
     const buffer = Buffer.from(data, "base64");
 
@@ -115,7 +108,7 @@ async function setImage({ image, game, field = "cover" }) {
         "Content-Type": `multipart/form-data; boundary=${formData._boundary}`,
       },
     });
-  } catch (error) {
+  } catch (e) {
     console.log("setImage", Exception(e));
   }
 }
